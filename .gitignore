@@ -1,0 +1,15 @@
+# Python 编译缓存
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# JetBrains IDE 本地配置
+.idea/
+*.iml
+
+# 环境与日志
+.env
+*.log
+.venv/
+venv/
