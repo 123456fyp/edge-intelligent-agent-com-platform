@@ -1,32 +1,17 @@
-<<<<<<< HEAD
-# Python 编译缓存
+# Python bytecode/cache
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 
-# JetBrains IDE 本地配置
-.idea/
-*.iml
-
-# 环境与日志
+# Local virtual environments
 .env
-*.log
 .venv/
-=======
-# Python 编译缓存
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-
-# JetBrains IDE 本地配置
-.idea/
-*.iml
-
-# 环境与日志
-.env
-*.log
-.venv/
->>>>>>> 9235032165d69208e717cebcdc65e9112d9a9f48
 venv/
+
+# Logs
+*.log
+
+# JetBrains IDE local files
+.idea/
+*.iml
