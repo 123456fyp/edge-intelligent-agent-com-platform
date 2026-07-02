@@ -1,26 +1,28 @@
 # -*- coding: utf-8 -*-
-"""无人机端配置 - 发送方"""
+"""Drone-side configuration.
 
+The drone process sends heartbeat and telemetry to the ground station.
+Defaults target localhost so the project can run as a local demo. For a real
+drone deployment, set GROUND_STATION_IP to the PC/ground-station address.
+"""
+
+import os
 from dataclasses import dataclass
 
 
 @dataclass
 class DroneConfig:
-    """无人机端配置（发送方）
+    """Drone sender configuration."""
 
-    无人机需要知道把数据发给谁（地面站的 IP 和端口）。
-    如果无人机有多个网卡，可以指定 bind_ip 来选择用哪个网卡发。
-    """
-    # ===== 目标地址（地面站的 IP 和端口）=====
-    target_ip: str = "192.168.1.117"     # 地面站（电脑）的 IP 地址
-    heartbeat_port: int = 9000            # 心跳端口（UDP）
-    data_port: int = 9001                 # 数据端口（TCP）
+    # Target address: ground station IP and ports.
+    target_ip: str = os.getenv("GROUND_STATION_IP", "127.0.0.1")
+    heartbeat_port: int = int(os.getenv("GROUND_STATION_HEARTBEAT_PORT", "9000"))
+    data_port: int = int(os.getenv("GROUND_STATION_DATA_PORT", "9001"))
 
-    # ===== 可选：绑定源 IP（多网卡时指定用哪个网卡发）=====
-    # 留空字符串表示不绑定，系统自动选
-    bind_ip: str = ""
+    # Optional source IP binding for multi-NIC hosts.
+    bind_ip: str = os.getenv("DRONE_BIND_IP", "")
 
-    # ===== 无人机自身参数 =====
-    drone_id: str = "DRONE-001"
-    heartbeat_interval: float = 1.0       # 心跳间隔（秒）
-    data_interval: float = 0.2            # 数据发送间隔（秒）
+    # Drone identity and send intervals.
+    drone_id: str = os.getenv("DRONE_ID", "DRONE-001")
+    heartbeat_interval: float = float(os.getenv("DRONE_HEARTBEAT_INTERVAL", "1.0"))
+    data_interval: float = float(os.getenv("DRONE_DATA_INTERVAL", "0.2"))
