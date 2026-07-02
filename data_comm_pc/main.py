@@ -1,22 +1,28 @@
 # -*- coding: utf-8 -*-
+"""Ground-station entrypoint.
+
+The active, login-enabled PC app lives in ``data_comm_pc/hajimi``. This
+wrapper keeps the original startup command working:
+
+    python data_comm_pc/main.py
 """
-地面站程序入口
-仅负责路径初始化和启动应用，所有模块装配逻辑由AppAssembler统一管理
-"""
-import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import runpy
+import sys
+from pathlib import Path
 
-from core.app_assembler import AppAssembler
 
+def main() -> None:
+    pc_dir = Path(__file__).resolve().parent
+    hajimi_dir = pc_dir / "hajimi"
+    hajimi_main = hajimi_dir / "main.py"
 
-def main():
-    assembler = AppAssembler()
-    try:
-        exit_code = assembler.run()
-        sys.exit(exit_code)
-    finally:
-        assembler.shutdown()
+    if not hajimi_main.exists():
+        raise FileNotFoundError(f"Missing hajimi entrypoint: {hajimi_main}")
+
+    sys.path.insert(0, str(hajimi_dir))
+    os.chdir(str(hajimi_dir))
+    runpy.run_path(str(hajimi_main), run_name="__main__")
 
 
 if __name__ == "__main__":
