@@ -11,7 +11,6 @@ from transport.factory import TransportFactory, TransportType
 from business.ground_station import GroundStation
 from ui.main_window import GroundStationWindow
 
-
 class AppAssembler:
     """应用组装器：自底向上完成配置、传输、业务、UI各层的装配"""
 
