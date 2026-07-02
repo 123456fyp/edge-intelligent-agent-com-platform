@@ -14,6 +14,10 @@ for path in (pc_dir, hajimi_dir):
 sys.path.insert(0, str(hajimi_dir))
 sys.path.insert(1, str(pc_dir))
 
+from patches import apply_hajimi_patches
+
+apply_hajimi_patches()
+
 from core.app_assembler import AppAssembler
 
 
