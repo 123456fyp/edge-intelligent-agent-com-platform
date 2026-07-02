@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from protocol import HeartbeatMessage, DataMessage
 from transport.base_sender import TransportSender
-from config.drone import DroneConfig
+from config.drone_config import DroneConfig
 from .hardware.base_drone_hardware import DroneHardwareBase
 
 

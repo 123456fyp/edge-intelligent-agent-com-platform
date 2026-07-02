@@ -1,4 +1,4 @@
 # -*- coding: utf-8 -*-
-from .drone import DroneConfig
+from .drone_config import DroneConfig
 
 __all__ = ["DroneConfig"]
