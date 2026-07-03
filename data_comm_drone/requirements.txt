@@ -1,0 +1,13 @@
+# 无人机边缘通信平台依赖
+# 核心依赖（必需）
+# 无 - 核心框架仅使用Python标准库
+
+# 系统性能监控（推荐安装）
+psutil>=5.9.0
+
+# ROS环境依赖（真实无人机环境已预装）
+# 注意：以下依赖仅在真实ROS/MavROS环境中需要，桌面测试不需要
+# rospy
+# sensor-msgs
+# mavros-msgs
+# geometry-msgs

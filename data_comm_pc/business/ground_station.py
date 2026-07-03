@@ -7,44 +7,48 @@ import time
 import threading
 from typing import Dict, Set, Tuple, Optional
 
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer  # 新增：导入QTimer
+from PyQt5.QtCore import QObject, pyqtSignal, QTimer
 
 from config.ground_station_config import GroundStationConfig
 from transport.base_receiver import TransportReceiver
-from protocol import HeartbeatMessage, DataMessage
+from protocol import HeartbeatMessage, DataMessage, PointCloudMessage
 from utils import quaternion_to_euler
 
 
 class GroundStation(QObject):
     """地面站接收业务节点，支持Qt信号事件通知"""
-    # 信号定义：设备上线、设备离线、数据更新
+    # 信号定义：设备上线、设备离线、数据更新、点云更新
     sig_drone_online = pyqtSignal(str)
     sig_drone_offline = pyqtSignal(str)
     sig_data_updated = pyqtSignal(str)  # 参数为无人机ID
+    sig_pointcloud_updated = pyqtSignal(str)  # 点云数据更新信号
 
     def __init__(
         self,
         config: GroundStationConfig,
         heartbeat_receiver: TransportReceiver,
         data_receiver: TransportReceiver,
+        pointcloud_receiver: Optional[TransportReceiver] = None,
         parent=None
     ):
         super().__init__(parent)
         self.config = config
         self.heartbeat_receiver = heartbeat_receiver
         self.data_receiver = data_receiver
+        self.pointcloud_receiver = pointcloud_receiver
 
         # 无人机状态管理
         self._last_heartbeat: Dict[str, float] = {}
         self._drone_status: Dict[str, dict] = {}
+        self._drone_pointcloud: Dict[str, PointCloudMessage] = {}
+        self._last_pointcloud_time: Dict[str, float] = {}
 
         self._running = False
         self._lock = threading.Lock()
 
-        # ========== 【修改1：新增离线检测定时器，自动周期执行】==========
+        # 离线检测定时器
         self._offline_check_timer = QTimer(self)
         self._offline_check_timer.timeout.connect(self.check_offline_drones)
-        # 每秒检测一次离线，可根据配置调整
         self._offline_check_timer.setInterval(1000)
 
     # ========== 回调处理 ==========
@@ -79,10 +83,10 @@ class GroundStation(QObject):
 
             is_new = False
             with self._lock:
-                # ========== 【修改2：收到数据也更新心跳时间，避免心跳丢包误判离线】==========
+                # 收到数据也更新心跳时间，避免心跳丢包误判离线
                 self._last_heartbeat[msg.drone_id] = time.time()
 
-                # ========== 【修改3：先收到数据也判定新设备，触发上线，避免心跳晚到导致不显示】==========
+                # 先收到数据也判定新设备，触发上线，避免心跳晚到导致不显示
                 if msg.drone_id not in self._drone_status:
                     is_new = True
 
@@ -106,13 +110,47 @@ class GroundStation(QObject):
             # 锁外发射信号，通知UI立即刷新
             self.sig_data_updated.emit(msg.drone_id)
 
-            # 控制台打印（后台线程直接输出，所以比界面快）
+            # 控制台打印
             alt = msg.position.get("alt", "N/A")
             bat = msg.battery.get("percent", "N/A")
             print(f"[数据] {msg.drone_id} seq={msg.seq} 模式={msg.mode} 高度={alt}m 电量={bat}%")
 
         except Exception as e:
             print(f"[数据解析] 异常: {e}")
+
+    def _on_pointcloud_message(self, raw_data: bytes, addr: Tuple[str, int]) -> None:
+        """点云消息回调：接收并解析点云数据"""
+        try:
+            raw_json = raw_data.decode("utf-8")
+            msg = PointCloudMessage.from_json(raw_json)
+
+            with self._lock:
+                # 更新点云数据
+                self._drone_pointcloud[msg.drone_id] = msg
+                self._last_pointcloud_time[msg.drone_id] = time.time()
+
+                # 收到点云也更新心跳时间
+                self._last_heartbeat[msg.drone_id] = time.time()
+
+                # 新设备判定
+                if msg.drone_id not in self._drone_status:
+                    self._drone_status[msg.drone_id] = {}
+                    is_new = True
+                else:
+                    is_new = False
+
+            # 新设备上线
+            if is_new:
+                self.sig_drone_online.emit(msg.drone_id)
+                print(f"[接入] 新无人机上线(点云通道): {msg.drone_id} 地址:{addr[0]}:{addr[1]}")
+
+            # 发射点云更新信号
+            self.sig_pointcloud_updated.emit(msg.drone_id)
+
+            print(f"[点云] {msg.drone_id} seq={msg.seq} 点数={msg.num_points} 帧={msg.frame_id}")
+
+        except Exception as e:
+            print(f"[点云解析] 异常: {e}")
 
     def _normalize_attitude(self, atti_raw: dict) -> dict:
         """姿态数据归一化：统一输出角度格式的欧拉角"""
@@ -145,6 +183,11 @@ class GroundStation(QObject):
             data = self._drone_status.get(drone_id)
             return data.copy() if data else None
 
+    def get_drone_pointcloud(self, drone_id: str) -> Optional[PointCloudMessage]:
+        """获取单架无人机最新点云数据"""
+        with self._lock:
+            return self._drone_pointcloud.get(drone_id)
+
     def check_offline_drones(self) -> Set[str]:
         """基于心跳超时检测离线设备，每秒调用一次即可"""
         now = time.time()
@@ -159,6 +202,8 @@ class GroundStation(QObject):
             for drone_id in offline:
                 self._last_heartbeat.pop(drone_id, None)
                 self._drone_status.pop(drone_id, None)
+                self._drone_pointcloud.pop(drone_id, None)
+                self._last_pointcloud_time.pop(drone_id, None)
 
         # 发射离线信号
         for drone_id in offline:
@@ -180,18 +225,24 @@ class GroundStation(QObject):
 
     def start(self) -> None:
         """启动业务：注册回调、开启接收、启动离线检测"""
-        print("=" * 50)
+        print("=" * 60)
         print("  地面站启动")
         print(f"  心跳监听端口(UDP): {self.config.heartbeat_port}")
         print(f"  数据监听端口(TCP): {self.config.data_port}")
+        if self.pointcloud_receiver and self.config.enable_pointcloud:
+            print(f"  点云监听端口(TCP): {self.config.pointcloud_port}")
         print(f"  心跳超时时间: {self.config.heartbeat_timeout}s")
-        print("=" * 50)
+        print("=" * 60)
 
         self._running = True
         self.heartbeat_receiver.start(on_message=self._on_heartbeat_message)
         self.data_receiver.start(on_message=self._on_data_message)
 
-        # ========== 【修改4：启动时开启离线检测定时器】==========
+        # 启动点云接收
+        if self.pointcloud_receiver and self.config.enable_pointcloud:
+            self.pointcloud_receiver.start(on_message=self._on_pointcloud_message)
+
+        # 启动离线检测定时器
         self._offline_check_timer.start()
 
     def stop(self) -> None:
@@ -201,4 +252,9 @@ class GroundStation(QObject):
         self._offline_check_timer.stop()
         self.heartbeat_receiver.close()
         self.data_receiver.close()
+
+        # 停止点云接收
+        if self.pointcloud_receiver:
+            self.pointcloud_receiver.close()
+
         print("地面站已停止")

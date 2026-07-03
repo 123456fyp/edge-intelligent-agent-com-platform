@@ -6,3 +6,5 @@ class MessageType:
     """消息类型枚举"""
     HEARTBEAT = "heartbeat"
     DATA = "data"
+    POINTCLOUD = "pointcloud"
+    SYSTEM_METRICS = "system_metrics"

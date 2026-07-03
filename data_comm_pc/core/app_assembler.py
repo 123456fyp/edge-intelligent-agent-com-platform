@@ -40,11 +40,27 @@ class AppAssembler:
             backlog=self.config.tcp_backlog
         )
 
+        # 点云数据接收通道（TCP，大数据可靠传输）
+        pointcloud_receiver = None
+        if self.config.enable_pointcloud:
+            pointcloud_receiver = TransportFactory.create_receiver(
+                transport_type=TransportType.TCP,
+                port=self.config.pointcloud_port,
+                buffer_size=self.config.pointcloud_buffer_size,
+                listen_ip=self.config.listen_ip,
+                backlog=self.config.tcp_backlog
+            )
+
         # 3. 创建业务层，注入配置和传输层抽象
-        self.gs = GroundStation(self.config, hb_receiver, data_receiver)
+        self.gs = GroundStation(
+            config=self.config,
+            heartbeat_receiver=hb_receiver,
+            data_receiver=data_receiver,
+            pointcloud_receiver=pointcloud_receiver
+        )
         self.gs.start()
 
-        # 4. 创建UI层：高DPI设置必须在QApplication实例化之前完成（修复原代码顺序bug）
+        # 4. 创建UI层：高DPI设置必须在QApplication实例化之前完成
         QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
         QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)  # 高DPI图标适配
         self.app = QApplication(sys.argv)
